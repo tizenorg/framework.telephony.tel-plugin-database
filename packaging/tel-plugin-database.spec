@@ -3,7 +3,7 @@ Summary:    Telephony DataBase storage plugin
 Version:    0.1.7
 Release:    1
 Group:      System/Libraries
-License:    Apache
+License:    Apache-2.0
 Source0:    tel-plugin-database-%{version}.tar.gz
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
@@ -30,8 +30,10 @@ make %{?jobs:-j%jobs}
 
 %install
 %make_install
+mkdir -p %{buildroot}/usr/share/license
+cp LICENSE %{buildroot}/usr/share/license/%{name}
 
 %files
 %defattr(-,root,root,-)
 %{_libdir}/telephony/plugins/db-plugin*
-/usr/share/license/tel-plugin-database
+/usr/share/license/%{name}
