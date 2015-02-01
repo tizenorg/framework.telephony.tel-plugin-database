@@ -31,6 +31,10 @@
 #include <plugin.h>
 #include <storage.h>
 
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION 1
+#endif
+
 static void* create_handle(Storage *strg, const char *path)
 {
 	int rv = 0;
@@ -78,23 +82,25 @@ static gboolean update_query_database(Storage *strg, void *handle, const char *q
 		return FALSE;
 	}
 
-	g_hash_table_iter_init(&iter, in_param);
-	while (g_hash_table_iter_next(&iter, &key, &value) == TRUE) {
-		dbg("key(%s), value(%s)", (const char*)key, (const char*)value);
+	if(in_param){
+		g_hash_table_iter_init(&iter, in_param);
+		while (g_hash_table_iter_next(&iter, &key, &value) == TRUE) {
+			dbg("key(%s), value(%s)", (const char*)key, (const char*)value);
 
-		if (!value || g_strcmp0((const char*) value, "") == 0) {
-			dbg("bind null");
-			rv = sqlite3_bind_null(stmt, atoi((const char*) key));
-		}
-		else {
-			dbg("bind value");
-			rv = sqlite3_bind_text(stmt, atoi((const char*) key), (const char*) value, strlen((const char*) value),
-					SQLITE_STATIC);
-		}
+			if (!value || g_strcmp0((const char*) value, "") == 0) {
+				dbg("bind null");
+				rv = sqlite3_bind_null(stmt, atoi((const char*) key));
+			}
+			else {
+				dbg("bind value");
+				rv = sqlite3_bind_text(stmt, atoi((const char*) key), (const char*) value, strlen((const char*) value),
+						SQLITE_STATIC);
+			}
 
-		if (rv != SQLITE_OK) {
-			dbg("fail to bind data (%d)", rv);
-			return FALSE;
+			if (rv != SQLITE_OK) {
+				dbg("fail to bind data (%d)", rv);
+				return FALSE;
+			}
 		}
 	}
 
@@ -112,7 +118,7 @@ static gboolean update_query_database(Storage *strg, void *handle, const char *q
 static gboolean read_query_database(Storage *strg, void *handle, const char *query, GHashTable *in_param,
 		GHashTable *out_param, int out_param_cnt)
 {
-	int rv = 0, index = 0, outter_index = 0;
+	int rv = 0, local_index = 0, outter_index = 0;
 	sqlite3_stmt* stmt = NULL;
 	char szQuery[5000+1];	// +1 is for NULL Termination Character '\0'
 
@@ -162,11 +168,12 @@ static gboolean read_query_database(Storage *strg, void *handle, const char *que
 
 		out_param_data = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
 
-		for (index = 0; index < out_param_cnt; index++) {
-			char *tmp = NULL, tmp_key[10];
-			tmp = (char *) sqlite3_column_text(stmt, index);
-			snprintf(tmp_key, sizeof(tmp_key), "%d", index);
-			g_hash_table_insert(out_param_data, g_strdup(tmp_key), g_strdup(tmp));
+		for (local_index = 0; local_index < out_param_cnt; local_index++) {
+			char tmp_key[10];
+			const unsigned char *tmp;
+			tmp = sqlite3_column_text(stmt, local_index);
+			snprintf(tmp_key, sizeof(tmp_key), "%d", local_index);
+			g_hash_table_insert(out_param_data, g_strdup(tmp_key), g_strdup((const gchar *) tmp));
 		}
 
 		snprintf(tmp_key_outter, sizeof(tmp_key_outter), "%d", outter_index);
@@ -198,23 +205,25 @@ static gboolean insert_query_database(Storage *strg, void *handle, const char *q
 		return FALSE;
 	}
 
-	g_hash_table_iter_init(&iter, in_param);
-	while (g_hash_table_iter_next(&iter, &key, &value) == TRUE) {
-		dbg("key(%s), value(%s)", (const char*)key, (const char*)value);
+	if(in_param){
+		g_hash_table_iter_init(&iter, in_param);
+		while (g_hash_table_iter_next(&iter, &key, &value) == TRUE) {
+			dbg("key(%s), value(%s)", (const char*)key, (const char*)value);
 
-		if (!value || g_strcmp0((const char*) value, "") == 0) {
-			dbg("bind null");
-			rv = sqlite3_bind_null(stmt, atoi((const char*) key));
-		}
-		else {
-			dbg("bind value");
-			rv = sqlite3_bind_text(stmt, atoi((const char*) key), (const char*) value, strlen((const char*) value),
-					SQLITE_STATIC);
-		}
+			if (!value || g_strcmp0((const char*) value, "") == 0) {
+				dbg("bind null");
+				rv = sqlite3_bind_null(stmt, atoi((const char*) key));
+			}
+			else {
+				dbg("bind value");
+				rv = sqlite3_bind_text(stmt, atoi((const char*) key), (const char*) value, strlen((const char*) value),
+						SQLITE_STATIC);
+			}
 
-		if (rv != SQLITE_OK) {
-			dbg("fail to bind data (%d)", rv);
-			return FALSE;
+			if (rv != SQLITE_OK) {
+				dbg("fail to bind data (%d)", rv);
+				return FALSE;
+			}
 		}
 	}
 
@@ -247,23 +256,25 @@ static gboolean remove_query_database(Storage *strg, void *handle, const char *q
 		return FALSE;
 	}
 
-	g_hash_table_iter_init(&iter, in_param);
-	while (g_hash_table_iter_next(&iter, &key, &value) == TRUE) {
-		dbg("key(%s), value(%s)", (const char*)key, (const char*)value);
+	if(in_param){
+		g_hash_table_iter_init(&iter, in_param);
+		while (g_hash_table_iter_next(&iter, &key, &value) == TRUE) {
+			dbg("key(%s), value(%s)", (const char*)key, (const char*)value);
 
-		if (!value || g_strcmp0((const char*) value, "") == 0) {
-			dbg("bind null");
-			rv = sqlite3_bind_null(stmt, atoi((const char*) key));
-		}
-		else {
-			dbg("bind value");
-			rv = sqlite3_bind_text(stmt, atoi((const char*) key), (const char*) value, strlen((const char*) value),
-					SQLITE_STATIC);
-		}
+			if (!value || g_strcmp0((const char*) value, "") == 0) {
+				dbg("bind null");
+				rv = sqlite3_bind_null(stmt, atoi((const char*) key));
+			}
+			else {
+				dbg("bind value");
+				rv = sqlite3_bind_text(stmt, atoi((const char*) key), (const char*) value, strlen((const char*) value),
+						SQLITE_STATIC);
+			}
 
-		if (rv != SQLITE_OK) {
-			dbg("fail to bind data (%d)", rv);
-			return FALSE;
+			if (rv != SQLITE_OK) {
+				dbg("fail to bind data (%d)", rv);
+				return FALSE;
+			}
 		}
 	}
 
@@ -278,7 +289,7 @@ static gboolean remove_query_database(Storage *strg, void *handle, const char *q
 	return TRUE;
 }
 
-struct storage_operations ops = {
+static struct storage_operations ops = {
 	.create_handle = create_handle,
 	.remove_handle = remove_handle,
 	.update_query_database = update_query_database,
@@ -310,11 +321,11 @@ static void on_unload(TcorePlugin *p)
 	return;
 }
 
-struct tcore_plugin_define_desc plugin_define_desc =
+EXPORT_API struct tcore_plugin_define_desc plugin_define_desc =
 {
 	.name = "DATABASE",
 	.priority = TCORE_PLUGIN_PRIORITY_HIGH -1,
-	.version = 1,
+	.version = PLUGIN_VERSION,
 	.load = on_load,
 	.init = on_init,
 	.unload = on_unload

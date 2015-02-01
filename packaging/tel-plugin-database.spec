@@ -1,17 +1,20 @@
-Name:       tel-plugin-database
-Summary:    Telephony DataBase storage plugin
-Version:    0.1.7
-Release:    1
-Group:      System/Libraries
-License:    Apache-2.0
-Source0:    tel-plugin-database-%{version}.tar.gz
-Requires(post): /sbin/ldconfig
-Requires(postun): /sbin/ldconfig
+%define major 0
+%define minor 1
+%define patchlevel 12
+
+Name:           tel-plugin-database
+Version:        %{major}.%{minor}.%{patchlevel}
+Release:        1
+License:        Apache
+Summary:        Telephony DataBase storage plugin
+Group:          System/Libraries
+Source0:        tel-plugin-database-%{version}.tar.gz
 BuildRequires:  cmake
+BuildRequires:  pkgconfig(db-util)
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(tcore)
-BuildRequires:  pkgconfig(dlog)
-BuildRequires:  pkgconfig(db-util)
+Requires(post): /sbin/ldconfig
+Requires(postun): /sbin/ldconfig
 
 %description
 Telephony DataBase storage plugin
@@ -20,20 +23,20 @@ Telephony DataBase storage plugin
 %setup -q
 
 %build
-%cmake .
-make %{?jobs:-j%jobs}
+versionint=$[%{major} * 1000000 + %{minor} * 1000 + %{patchlevel}]
+cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DVERSION=$versionint
+make %{?_smp_mflags}
 
-%post
-/sbin/ldconfig
+%post -p /sbin/ldconfig
 
 %postun -p /sbin/ldconfig
 
 %install
 %make_install
-mkdir -p %{buildroot}/usr/share/license
-cp LICENSE %{buildroot}/usr/share/license/%{name}
+mkdir -p %{buildroot}%{_datadir}/license
 
 %files
 %defattr(-,root,root,-)
+#%doc COPYING
 %{_libdir}/telephony/plugins/db-plugin*
-/usr/share/license/%{name}
+%{_datadir}/license/tel-plugin-database
