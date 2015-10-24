@@ -35,7 +35,7 @@
 #define PLUGIN_VERSION 1
 #endif
 
-static void* create_handle(Storage *strg, const char *path)
+static void *create_handle(Storage *strg, const char *path)
 {
 	int rv = 0;
 	sqlite3 *handle = NULL;
@@ -56,7 +56,6 @@ static gboolean remove_handle(Storage *strg, void *handle)
 		return FALSE;
 
 	db_util_close(handle);
-	//free(handle);
 
 	dbg("disconnected from database");
 	return TRUE;
@@ -65,8 +64,8 @@ static gboolean remove_handle(Storage *strg, void *handle)
 static gboolean update_query_database(Storage *strg, void *handle, const char *query, GHashTable *in_param)
 {
 	int rv = 0;
-	sqlite3_stmt* stmt = NULL;
-	char szQuery[1000+1];	// +1 is for NULL Termination Character '\0'
+	sqlite3_stmt *stmt = NULL;
+	char szQuery[1000+1];	/* +1 is for NULL Termination Character '\0' */
 
 	GHashTableIter iter;
 	gpointer key, value;
@@ -82,18 +81,17 @@ static gboolean update_query_database(Storage *strg, void *handle, const char *q
 		return FALSE;
 	}
 
-	if(in_param){
+	if (in_param) {
 		g_hash_table_iter_init(&iter, in_param);
 		while (g_hash_table_iter_next(&iter, &key, &value) == TRUE) {
-			dbg("key(%s), value(%s)", (const char*)key, (const char*)value);
+			dbg("key(%s), value(%s)", (const char *)key, (const char *)value);
 
-			if (!value || g_strcmp0((const char*) value, "") == 0) {
+			if (!value || g_strcmp0((const char *)value, "") == 0) {
 				dbg("bind null");
-				rv = sqlite3_bind_null(stmt, atoi((const char*) key));
-			}
-			else {
+				rv = sqlite3_bind_null(stmt, atoi((const char *)key));
+			} else {
 				dbg("bind value");
-				rv = sqlite3_bind_text(stmt, atoi((const char*) key), (const char*) value, strlen((const char*) value),
+				rv = sqlite3_bind_text(stmt, atoi((const char *)key), (const char *)value, strlen((const char *)value),
 						SQLITE_STATIC);
 			}
 
@@ -108,19 +106,18 @@ static gboolean update_query_database(Storage *strg, void *handle, const char *q
 	dbg("update query executed (%d)", rv);
 	sqlite3_finalize(stmt);
 
-	if (rv != SQLITE_DONE) {
+	if (rv != SQLITE_DONE)
 		return FALSE;
-	}
 
 	return TRUE;
 }
 
-static gboolean read_query_database(Storage *strg, void *handle, const char *query, GHashTable *in_param,
-		GHashTable *out_param, int out_param_cnt)
+static gboolean _read_query_database_internal(Storage *strg, void *handle, const char *query, GHashTable *in_param,
+		gpointer out_param, int out_param_cnt, gboolean in_order)
 {
 	int rv = 0, local_index = 0, outter_index = 0;
-	sqlite3_stmt* stmt = NULL;
-	char szQuery[5000+1];	// +1 is for NULL Termination Character '\0'
+	sqlite3_stmt *stmt = NULL;
+	char szQuery[5000+1];	/* +1 is for NULL Termination Character '\0' */
 
 	GHashTableIter iter;
 	gpointer key, value;
@@ -139,15 +136,14 @@ static gboolean read_query_database(Storage *strg, void *handle, const char *que
 	if (in_param) {
 		g_hash_table_iter_init(&iter, in_param);
 		while (g_hash_table_iter_next(&iter, &key, &value) == TRUE) {
-			dbg("key(%s), value(%s)", (const char*)key, (const char*)value);
+			dbg("key(%s), value(%s)", (const char *)key, (const char *)value);
 
-			if (!value || g_strcmp0((const char*) value, "") == 0) {
+			if (!value || g_strcmp0((const char *)value, "") == 0) {
 				dbg("bind null");
-				rv = sqlite3_bind_null(stmt, atoi((const char*) key));
-			}
-			else {
+				rv = sqlite3_bind_null(stmt, atoi((const char *)key));
+			} else {
 				dbg("bind value");
-				rv = sqlite3_bind_text(stmt, atoi((const char*) key), (const char*) value, strlen((const char*) value),
+				rv = sqlite3_bind_text(stmt, atoi((const char *)key), (const char *)value, strlen((const char *)value),
 						SQLITE_STATIC);
 			}
 
@@ -159,11 +155,9 @@ static gboolean read_query_database(Storage *strg, void *handle, const char *que
 	}
 
 	rv = sqlite3_step(stmt);
-	dbg("read query executed (%d)", rv);
+	dbg("read query executed (%d), in_order (%d)", rv, in_order);
 
 	while (rv == SQLITE_ROW) {
-
-		char tmp_key_outter[10];
 		GHashTable *out_param_data;
 
 		out_param_data = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
@@ -173,11 +167,17 @@ static gboolean read_query_database(Storage *strg, void *handle, const char *que
 			const unsigned char *tmp;
 			tmp = sqlite3_column_text(stmt, local_index);
 			snprintf(tmp_key, sizeof(tmp_key), "%d", local_index);
-			g_hash_table_insert(out_param_data, g_strdup(tmp_key), g_strdup((const gchar *) tmp));
+			g_hash_table_insert(out_param_data, g_strdup(tmp_key), g_strdup((const char *)tmp));
 		}
 
-		snprintf(tmp_key_outter, sizeof(tmp_key_outter), "%d", outter_index);
-		g_hash_table_insert(out_param, g_strdup(tmp_key_outter), out_param_data);
+		if (in_order) {
+			GSList **temp = out_param;
+			*temp = g_slist_append(*temp, out_param_data);
+		} else {
+			char tmp_key_outter[10];
+			snprintf(tmp_key_outter, sizeof(tmp_key_outter), "%d", outter_index);
+			g_hash_table_insert((GHashTable*)out_param, g_strdup(tmp_key_outter), out_param_data);
+		}
 		outter_index++;
 		rv = sqlite3_step(stmt);
 	}
@@ -186,11 +186,25 @@ static gboolean read_query_database(Storage *strg, void *handle, const char *que
 	return TRUE;
 }
 
+static gboolean read_query_database(Storage *strg, void *handle, const char *query, GHashTable *in_param,
+		GHashTable *out_param, int out_param_cnt)
+{
+	_read_query_database_internal(strg, handle, query, in_param, out_param, out_param_cnt, FALSE);
+	return TRUE;
+}
+
+static gboolean read_query_database_in_order(Storage *strg, void *handle, const char *query, GHashTable *in_param,
+		GSList **out_param, int out_param_cnt)
+{
+	_read_query_database_internal(strg, handle, query, in_param, out_param, out_param_cnt, TRUE);
+	return TRUE;
+}
+
 static gboolean insert_query_database(Storage *strg, void *handle, const char *query, GHashTable *in_param)
 {
 	int rv = 0;
-	sqlite3_stmt* stmt = NULL;
-	char szQuery[5000+1];	// +1 is for NULL Termination Character '\0'
+	sqlite3_stmt *stmt = NULL;
+	char szQuery[5000+1];	/* +1 is for NULL Termination Character '\0' */
 
 	GHashTableIter iter;
 	gpointer key, value;
@@ -205,18 +219,17 @@ static gboolean insert_query_database(Storage *strg, void *handle, const char *q
 		return FALSE;
 	}
 
-	if(in_param){
+	if (in_param) {
 		g_hash_table_iter_init(&iter, in_param);
 		while (g_hash_table_iter_next(&iter, &key, &value) == TRUE) {
-			dbg("key(%s), value(%s)", (const char*)key, (const char*)value);
+			dbg("key(%s), value(%s)", (const char *)key, (const char *)value);
 
-			if (!value || g_strcmp0((const char*) value, "") == 0) {
+			if (!value || g_strcmp0((const char *)value, "") == 0) {
 				dbg("bind null");
-				rv = sqlite3_bind_null(stmt, atoi((const char*) key));
-			}
-			else {
+				rv = sqlite3_bind_null(stmt, atoi((const char *)key));
+			} else {
 				dbg("bind value");
-				rv = sqlite3_bind_text(stmt, atoi((const char*) key), (const char*) value, strlen((const char*) value),
+				rv = sqlite3_bind_text(stmt, atoi((const char *)key), (const char *)value, strlen((const char *)value),
 						SQLITE_STATIC);
 			}
 
@@ -231,17 +244,17 @@ static gboolean insert_query_database(Storage *strg, void *handle, const char *q
 	dbg("insert query executed (%d)", rv);
 	sqlite3_finalize(stmt);
 
-	if (rv != SQLITE_DONE) {
+	if (rv != SQLITE_DONE)
 		return FALSE;
-	}
+
 	return TRUE;
 }
 
 static gboolean remove_query_database(Storage *strg, void *handle, const char *query, GHashTable *in_param)
 {
 	int rv = 0;
-	sqlite3_stmt* stmt = NULL;
-	char szQuery[1000+1];	// +1 is for NULL Termination Character '\0'
+	sqlite3_stmt *stmt = NULL;
+	char szQuery[1000+1];	/* +1 is for NULL Termination Character '\0' */
 
 	GHashTableIter iter;
 	gpointer key, value;
@@ -256,18 +269,17 @@ static gboolean remove_query_database(Storage *strg, void *handle, const char *q
 		return FALSE;
 	}
 
-	if(in_param){
+	if (in_param) {
 		g_hash_table_iter_init(&iter, in_param);
 		while (g_hash_table_iter_next(&iter, &key, &value) == TRUE) {
-			dbg("key(%s), value(%s)", (const char*)key, (const char*)value);
+			dbg("key(%s), value(%s)", (const char *)key, (const char *)value);
 
-			if (!value || g_strcmp0((const char*) value, "") == 0) {
+			if (!value || g_strcmp0((const char *)value, "") == 0) {
 				dbg("bind null");
-				rv = sqlite3_bind_null(stmt, atoi((const char*) key));
-			}
-			else {
+				rv = sqlite3_bind_null(stmt, atoi((const char *)key));
+			} else {
 				dbg("bind value");
-				rv = sqlite3_bind_text(stmt, atoi((const char*) key), (const char*) value, strlen((const char*) value),
+				rv = sqlite3_bind_text(stmt, atoi((const char *)key), (const char *)value, strlen((const char *)value),
 						SQLITE_STATIC);
 			}
 
@@ -282,9 +294,8 @@ static gboolean remove_query_database(Storage *strg, void *handle, const char *q
 	dbg("remove query executed (%d)", rv);
 	sqlite3_finalize(stmt);
 
-	if (rv != SQLITE_DONE) {
+	if (rv != SQLITE_DONE)
 		return FALSE;
-	}
 
 	return TRUE;
 }
@@ -294,6 +305,7 @@ static struct storage_operations ops = {
 	.remove_handle = remove_handle,
 	.update_query_database = update_query_database,
 	.read_query_database = read_query_database,
+	.read_query_database_in_order = read_query_database_in_order,
 	.insert_query_database = insert_query_database,
 	.remove_query_database = remove_query_database,
 };
@@ -321,10 +333,9 @@ static void on_unload(TcorePlugin *p)
 	return;
 }
 
-EXPORT_API struct tcore_plugin_define_desc plugin_define_desc =
-{
+EXPORT_API struct tcore_plugin_define_desc plugin_define_desc = {
 	.name = "DATABASE",
-	.priority = TCORE_PLUGIN_PRIORITY_HIGH -1,
+	.priority = TCORE_PLUGIN_PRIORITY_HIGH - 1,
 	.version = PLUGIN_VERSION,
 	.load = on_load,
 	.init = on_init,
